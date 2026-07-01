@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Location Sharing</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; padding: 50px 20px; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
+        button { background: #007bff; color: white; border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        #status { margin-top: 20px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Share Location</h2>
+    <p>Please permit location access to share your live coordinates with the dashboard system.</p>
+    <button onclick="shareLiveLocation()">Allow Live Tracking</button>
+    <div id="status">Ready to connect...</div>
+</div>
+
+<script>
+    function shareLiveLocation() {
+        const statusText = document.getElementById('status');
+        
+        if (!navigator.geolocation) {
+            statusText.innerText = "Error: Geolocation is not supported by your browser.";
+            return;
+        }
+
+        statusText.innerText = "Locating... Please click 'Allow' if prompted.";
+
+        // Real-time tracking configuration
+        const options = {
+            enableHighAccuracy: true, // Forces hardware GPS deployment
+            timeout: 10000,           // Wait up to 10 seconds for signal
+            maximumAge: 0             // Do not use cached/old location data
+        };
+
+        // watchPosition streams live data continuously as they move
+        navigator.geolocation.watchPosition(
+            (position) => {
+                const data = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    acc: position.coords.accuracy,
+                    timestamp: new Date().toLocaleTimeString()
+                };
+
+                statusText.innerHTML = `<span style="color: green;">✔ Connected! Streaming location...</span>`;
+                
+                // Transmit data to your dashboard
+                // Replace 'YOUR_BACKEND_URL' with your real server API endpoint
+                console.log("Sending coordinates to dashboard:", data);
+                
+                localStorage.setItem('live_target_gps', JSON.stringify(data)); 
+            },
+            (error) => {
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        statusText.innerText = "Error: User denied the request for Location.";
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        statusText.innerText = "Error: Location information is unavailable.";
+                        break;
+                    case error.TIMEOUT:
+                        statusText.innerText = "Error: The request to get user location timed out.";
+                        break;
+                }
+            }, 
+            options
+        );
+    }
+</script>
+</body>
+</html>
