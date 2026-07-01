@@ -13,6 +13,7 @@
         #status { margin-top: 20px; color: #666; font-size: 14px; font-weight: bold; }
         .locked-info { color: #555; font-size: 14px; margin-bottom: 15px; font-weight: bold; }
     </style>
+    <!-- Firebase Legacy SDK Scripts -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
@@ -30,7 +31,7 @@
 </div>
 
 <script>
-    // Your verified Firebase configurations
+    // Firebase Configuration
     const firebaseConfig = {
         apiKey: "AIzaSyDCeJ00BT0ODn34gwzkE3U8vHyDe1dVz5o",
         authDomain: "tracker-38206.firebaseapp.com",
@@ -44,12 +45,18 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     let currentId = "";
+    let watchId = null;
 
     window.onload = function() {
+        // Register Service Worker for better background persistence
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => {
-                console.log("Background Service Worker Active.");
-            });
+            navigator.serviceWorker.register('sw.js')
+                .then((reg) => {
+                    console.log("Background Service Worker Registered Successfully.", reg);
+                })
+                .catch((err) => {
+                    console.error("Service Worker Registration Failed:", err);
+                });
         }
 
         const savedName = localStorage.getItem('saved_tracker_name');
@@ -63,11 +70,65 @@
     function lockUI(name) {
         document.getElementById('nameSection').style.display = 'none';
         document.getElementById('lockedNameDisplay').style.display = 'block';
-        document.getElementById('lockedNameDisplay').innerHTML = `Registered: <span style="color:#007bff;">${name}</span>`;
+        document.getElementById('lockedNameDisplay').innerHTML = `Registered Device: <span style="color:#007bff;">${name}</span>`;
         document.getElementById('startBtn').style.display = 'none';
     }
 
     function initTracking() {
         const nameInput = document.getElementById('deviceName');
         currentId = nameInput.value.trim();
-        if (!currentId) { alert("Please enter a name!"); return; }
+        if (!currentId) { 
+            alert("Please enter a valid device name!"); 
+            return; 
+        }
+        
+        localStorage.setItem('saved_tracker_name', currentId);
+        lockUI(currentId);
+        startBackgroundTracking();
+    }
+
+    function startBackgroundTracking() {
+        if (!navigator.geolocation) {
+            document.getElementById('status').innerText = "Error: Geolocation not supported by this browser.";
+            return;
+        }
+
+        document.getElementById('status').innerText = "Locating GPS (Establishing streams)...";
+
+        const geoOptions = {
+            enableHighAccuracy: true,
+            timeout: 5000, 
+            maximumAge: 0
+        };
+
+        // Clear existing watch instance if running
+        if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+        }
+
+        watchId = navigator.geolocation.watchPosition(
+            (position) => {
+                const telemetry = {
+                    id: currentId,
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude,
+                    acc: position.coords.accuracy,
+                    timestamp: new Date().toLocaleTimeString()
+                };
+
+                document.getElementById('status').innerHTML = `<span style="color: green;">✔ Live Streaming Active</span>`;
+                
+                // Write directly to your real-time cloud endpoint
+                database.ref('devices/' + currentId).set(telemetry)
+                    .catch(err => console.error("Database sync failed:", err));
+            },
+            (error) => { 
+                console.warn(`Geolocation error (${error.code}): ${error.message}`);
+                document.getElementById('status').innerHTML = `<span style="color: orange;">Seeking signal... (${error.message})</span>`;
+            },
+            geoOptions
+        );
+    }
+</script>
+</body>
+</html>
