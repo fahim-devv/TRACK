@@ -7,40 +7,49 @@
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; padding: 50px 20px; }
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
-        button { background: #007bff; color: white; border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        #status { margin-top: 20px; color: #666; font-size: 14px; }
+        button { border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px; width: 100%; max-width: 200px;}
+        .btn-start { background: #28a745; color: white; }
+        .btn-start:hover { background: #218838; }
+        .btn-stop { background: #dc3545; color: white; display: none; } /* Hidden until tracking starts */
+        .btn-stop:hover { background: #c82333; }
+        #status { margin-top: 20px; color: #666; font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Share Location</h2>
-    <p>Please permit location access to share your live coordinates with the dashboard system.</p>
-    <button onclick="shareLiveLocation()">Allow Live Tracking</button>
-    <div id="status">Ready to connect...</div>
+    <h2>Location Control</h2>
+    <p>Manage your live location broadcast stream below.</p>
+    
+    <button id="startBtn" class="btn-start" onclick="shareLiveLocation()">Start Tracking</button>
+    <button id="stopBtn" class="btn-stop" onclick="stopLiveLocation()">Turn Off Location</button>
+    
+    <div id="status">Status: Disconnected</div>
 </div>
 
 <script>
+    let watchId = null; // Stores the active GPS tracking ID instance
+
     function shareLiveLocation() {
         const statusText = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
         
         if (!navigator.geolocation) {
-            statusText.innerText = "Error: Geolocation is not supported by your browser.";
+            statusText.innerText = "Error: Geolocation unsupported.";
             return;
         }
 
-        statusText.innerText = "Locating... Please click 'Allow' if prompted.";
+        statusText.innerText = "Locating... Please allow permission request.";
 
-        // Real-time tracking configuration
         const options = {
-            enableHighAccuracy: true, // Forces hardware GPS deployment
-            timeout: 10000,           // Wait up to 10 seconds for signal
-            maximumAge: 0             // Do not use cached/old location data
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
         };
 
-        // watchPosition streams live data continuously as they move
-        navigator.geolocation.watchPosition(
+        // Start watching the position and save the ID reference
+        watchId = navigator.geolocation.watchPosition(
             (position) => {
                 const data = {
                     lat: position.coords.latitude,
@@ -49,29 +58,42 @@
                     timestamp: new Date().toLocaleTimeString()
                 };
 
-                statusText.innerHTML = `<span style="color: green;">✔ Connected! Streaming location...</span>`;
+                statusText.innerHTML = `<span style="color: #28a745;">✔ LIVE: Streaming Coordinates</span>`;
                 
-                // Transmit data to your dashboard
-                // Replace 'YOUR_BACKEND_URL' with your real server API endpoint
-                console.log("Sending coordinates to dashboard:", data);
+                // Swap buttons visually
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
                 
+                // Send payload
                 localStorage.setItem('live_target_gps', JSON.stringify(data)); 
             },
             (error) => {
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        statusText.innerText = "Error: User denied the request for Location.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        statusText.innerText = "Error: Location information is unavailable.";
-                        break;
-                    case error.TIMEOUT:
-                        statusText.innerText = "Error: The request to get user location timed out.";
-                        break;
-                }
+                statusText.innerText = "Error tracking location: " + error.message;
             }, 
             options
         );
+    }
+
+    function stopLiveLocation() {
+        const statusText = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        if (watchId !== null) {
+            // Effectively kills the active browser GPS sensor call
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            
+            // Completely wipe the stored coordinate package data channel
+            localStorage.removeItem('live_target_gps');
+            
+            // Revert state indicators back to default
+            statusText.innerHTML = `<span style="color: #dc3545;">❌ Stopped: Location Offline</span>`;
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            
+            console.log("GPS data stream cleared completely.");
+        }
     }
 </script>
 </body>
