@@ -3,96 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure Location Sharing</title>
+    <title>Multi-Device Tracker Node</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; padding: 50px 20px; }
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
-        button { border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; margin: 5px; width: 100%; max-width: 200px;}
-        .btn-start { background: #28a745; color: white; }
-        .btn-start:hover { background: #218838; }
-        .btn-stop { background: #dc3545; color: white; display: none; } /* Hidden until tracking starts */
-        .btn-stop:hover { background: #c82333; }
+        input { width: 80%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; text-align: center; }
+        button { border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 85%; margin: 5px; }
+        .btn-start { background: #007bff; color: white; }
+        .btn-stop { background: #dc3545; color: white; display: none; }
         #status { margin-top: 20px; color: #666; font-size: 14px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>Location Control</h2>
-    <p>Manage your live location broadcast stream below.</p>
-    
-    <button id="startBtn" class="btn-start" onclick="shareLiveLocation()">Start Tracking</button>
-    <button id="stopBtn" class="btn-stop" onclick="stopLiveLocation()">Turn Off Location</button>
-    
-    <div id="status">Status: Disconnected</div>
+    <h2>Device Connection</h2>
+    <input type="text" id="deviceName" placeholder="Enter Device Name (e.g., Phone 1)">
+    <br>
+    <button id="startBtn" class="btn-start" onclick="startTracking()">Connect Device</button>
+    <button id="stopBtn" class="btn-stop" onclick="stopTracking()">Disconnect</button>
+    <div id="status">Status: Offline</div>
 </div>
 
 <script>
-    let watchId = null; // Stores the active GPS tracking ID instance
+    let watchId = null;
+    let currentId = "";
 
-    function shareLiveLocation() {
+    function startTracking() {
+        const nameInput = document.getElementById('deviceName');
         const statusText = document.getElementById('status');
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
-        
-        if (!navigator.geolocation) {
-            statusText.innerText = "Error: Geolocation unsupported.";
+
+        currentId = nameInput.value.trim();
+        if (!currentId) {
+            alert("Please enter a device name first!");
             return;
         }
 
-        statusText.innerText = "Locating... Please allow permission request.";
+        nameInput.disabled = true;
+        statusText.innerText = "Locating hardware GPS...";
 
-        const options = {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        };
-
-        // Start watching the position and save the ID reference
         watchId = navigator.geolocation.watchPosition(
             (position) => {
-                const data = {
+                const telemetry = {
+                    id: currentId,
                     lat: position.coords.latitude,
                     lng: position.coords.longitude,
                     acc: position.coords.accuracy,
                     timestamp: new Date().toLocaleTimeString()
                 };
 
-                statusText.innerHTML = `<span style="color: #28a745;">✔ LIVE: Streaming Coordinates</span>`;
-                
-                // Swap buttons visually
+                statusText.innerHTML = `<span style="color: green;">✔ Active streaming as: ${currentId}</span>`;
                 startBtn.style.display = 'none';
                 stopBtn.style.display = 'inline-block';
-                
-                // Send payload
-                localStorage.setItem('live_target_gps', JSON.stringify(data)); 
+
+                // Store unique packet per device ID
+                localStorage.setItem(`gps_device_${currentId}`, JSON.stringify(telemetry));
             },
-            (error) => {
-                statusText.innerText = "Error tracking location: " + error.message;
-            }, 
-            options
+            (error) => { statusText.innerText = "GPS Error: " + error.message; },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     }
 
-    function stopLiveLocation() {
-        const statusText = document.getElementById('status');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-
+    function stopTracking() {
         if (watchId !== null) {
-            // Effectively kills the active browser GPS sensor call
             navigator.geolocation.clearWatch(watchId);
             watchId = null;
+            localStorage.removeItem(`gps_device_${currentId}`);
             
-            // Completely wipe the stored coordinate package data channel
-            localStorage.removeItem('live_target_gps');
-            
-            // Revert state indicators back to default
-            statusText.innerHTML = `<span style="color: #dc3545;">❌ Stopped: Location Offline</span>`;
-            startBtn.style.display = 'inline-block';
-            stopBtn.style.display = 'none';
-            
-            console.log("GPS data stream cleared completely.");
+            document.getElementById('deviceName').disabled = false;
+            document.getElementById('status').innerHTML = "Status: Disconnected";
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
         }
     }
 </script>
