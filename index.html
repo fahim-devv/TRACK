@@ -3,108 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Permanent Locked Name Tracker Node</title>
+    <title>Permanent Background Tracker Node</title>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; background: #f4f6f9; padding: 50px 20px; }
         .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 400px; margin: 0 auto; }
         input { width: 80%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; text-align: center; }
         button { border: none; padding: 12px 25px; font-size: 16px; border-radius: 6px; cursor: pointer; font-weight: bold; width: 85%; margin: 5px; }
         .btn-start { background: #007bff; color: white; }
-        .btn-stop { background: #dc3545; color: white; display: none; }
         #status { margin-top: 20px; color: #666; font-size: 14px; font-weight: bold; }
         .locked-info { color: #555; font-size: 14px; margin-bottom: 15px; font-weight: bold; }
     </style>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
 
 <div class="card">
-    <h2>Tracker Node</h2>
+    <h2>Background Tracker</h2>
     <div id="nameSection">
         <input type="text" id="deviceName" placeholder="Enter Device Name">
     </div>
     <div id="lockedNameDisplay" class="locked-info" style="display: none;"></div>
     
-    <button id="startBtn" class="btn-start" onclick="startTracking()">Connect Device</button>
-    <button id="stopBtn" class="btn-stop" onclick="stopTracking()">Disconnect</button>
-    
+    <button id="startBtn" class="btn-start" onclick="initTracking()">Connect & Allow Background</button>
     <div id="status">Status: Offline</div>
 </div>
 
 <script>
-    let watchId = null;
+    // Your verified Firebase configurations
+    const firebaseConfig = {
+        apiKey: "AIzaSyDCeJ00BT0ODn34gwzkE3U8vHyDe1dVz5o",
+        authDomain: "tracker-38206.firebaseapp.com",
+        databaseURL: "https://tracker-38206-default-rtdb.firebaseio.com",
+        projectId: "tracker-38206",
+        storageBucket: "tracker-38206.firebasestorage.app",
+        messagingSenderId: "393055696899",
+        appId: "1:393055696899:web:44cf6722231a8d62867636"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
     let currentId = "";
 
-    // Page load hobei check korbe ei mobile-e agey kono name save kora hoyeche kina
     window.onload = function() {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                console.log("Background Service Worker Active.");
+            });
+        }
+
         const savedName = localStorage.getItem('saved_tracker_name');
         if (savedName) {
             currentId = savedName;
-            // Input box lukiye shudu purono nameti screen-e dekhabo
-            document.getElementById('nameSection').style.display = 'none';
-            document.getElementById('lockedNameDisplay').style.display = 'block';
-            document.getElementById('lockedNameDisplay').innerHTML = `Registered Name: <span style="color:#007bff;">${savedName}</span>`;
-            
-            // Auto-start tracking jatey user-er kichu korte na hoy
-            startTracking();
+            lockUI(savedName);
+            startBackgroundTracking();
         }
     };
 
-    function startTracking() {
+    function lockUI(name) {
+        document.getElementById('nameSection').style.display = 'none';
+        document.getElementById('lockedNameDisplay').style.display = 'block';
+        document.getElementById('lockedNameDisplay').innerHTML = `Registered: <span style="color:#007bff;">${name}</span>`;
+        document.getElementById('startBtn').style.display = 'none';
+    }
+
+    function initTracking() {
         const nameInput = document.getElementById('deviceName');
-        const statusText = document.getElementById('status');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-
-        // Jodi purono name na thake, tobe input field theke nibe
-        if (!currentId) {
-            currentId = nameInput.value.trim();
-            if (!currentId) {
-                alert("Please enter a device name first!");
-                return;
-            }
-            // Prothom barer jonno name-ti browser memory-te permanent lock kore dilam
-            localStorage.setItem('saved_tracker_name', currentId);
-            
-            // Screen update koro jatey ar input box na thake
-            document.getElementById('nameSection').style.display = 'none';
-            document.getElementById('lockedNameDisplay').style.display = 'block';
-            document.getElementById('lockedNameDisplay').innerHTML = `Registered Name: <span style="color:#007bff;">${currentId}</span>`;
-        }
-
-        statusText.innerText = "Locating hardware GPS...";
-
-        watchId = navigator.geolocation.watchPosition(
-            (position) => {
-                const telemetry = {
-                    id: currentId,
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                    acc: position.coords.accuracy,
-                    timestamp: new Date().toLocaleTimeString()
-                };
-
-                statusText.innerHTML = `<span style="color: green;">✔ Active streaming as: ${currentId}</span>`;
-                startBtn.style.display = 'none';
-                stopBtn.style.display = 'inline-block';
-
-                localStorage.setItem(`gps_device_${currentId}`, JSON.stringify(telemetry));
-            },
-            (error) => { statusText.innerText = "GPS Error: " + error.message; },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-    }
-
-    function stopTracking() {
-        if (watchId !== null) {
-            navigator.geolocation.clearWatch(watchId);
-            watchId = null;
-            localStorage.removeItem(`gps_device_${currentId}`);
-            
-            document.getElementById('status').innerHTML = "Status: Disconnected";
-            document.getElementById('startBtn').style.display = 'inline-block';
-            document.getElementById('stopBtn').style.display = 'none';
-        }
-    }
-</script>
-</body>
-</html>
+        currentId = nameInput.value.trim();
+        if (!currentId) { alert("Please enter a name!"); return; }
